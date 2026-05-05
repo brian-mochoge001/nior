@@ -34,14 +34,17 @@ app.get('/api/barcodes', (req, res) => {
   }
 });
 
-// POST generate new barcodes
+// POST generate new barcodes (modified for pageCount)
 app.post('/api/barcodes/generate', (req, res) => {
   try {
-    const { count, prefix } = req.body;
+    const { pageCount, prefix } = req.body; // Changed from 'count' to 'pageCount'
+    const PER_PAGE = 48; // Constant for barcodes per page
 
-    if (!count || count < 1 || count > 10000) {
-      return res.status(400).json({ error: 'Count must be between 1 and 10000' });
+    if (!pageCount || pageCount < 1 || pageCount > 200) { // Updated validation for page count
+      return res.status(400).json({ error: 'Page count must be between 1 and 200' });
     }
+
+    const count = pageCount * PER_PAGE; // Calculate total barcodes needed
 
     // Read existing barcodes
     const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
@@ -50,7 +53,7 @@ app.post('/api/barcodes/generate', (req, res) => {
     const eanPrefix = prefix || '200'; // Use 200-299 range (internal use / in-store)
     const newBarcodes = [];
     let attempts = 0;
-    const maxAttempts = count * 100;
+    const maxAttempts = count * 100; // Increased max attempts to ensure unique barcodes
 
     while (newBarcodes.length < count && attempts < maxAttempts) {
       attempts++;
@@ -71,12 +74,18 @@ app.post('/api/barcodes/generate', (req, res) => {
       }
     }
 
+    // Generate a unique ID for this generation batch
+    const generationId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
     // Save to file
     data.barcodes = Array.from(existingSet);
     data.generatedAt.push({
+      id: generationId,
       timestamp: new Date().toISOString(),
-      count: newBarcodes.length,
-      prefix: eanPrefix
+      count: newBarcodes.length, // Still report generated count
+      prefix: eanPrefix,
+      barcodeValues: newBarcodes,
+      pageCount: pageCount // Store page count for history
     });
 
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
@@ -84,12 +93,51 @@ app.post('/api/barcodes/generate', (req, res) => {
     res.json({
       generated: newBarcodes.length,
       barcodes: newBarcodes,
-      totalStored: data.barcodes.length
+      totalStored: data.barcodes.length,
+      generationId,
+      pageCount: pageCount // Return pageCount to frontend
     });
 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to generate barcodes' });
+  }
+});
+
+// DELETE a specific generation batch by ID
+app.delete('/api/barcodes/generation/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+
+    // Find the generation entry
+    const genIndex = data.generatedAt.findIndex(g => g.id === id);
+    if (genIndex === -1) {
+      return res.status(404).json({ error: 'Generation not found' });
+    }
+
+    const generation = data.generatedAt[genIndex];
+
+    // Remove the barcodes that belong to this generation
+    if (generation.barcodeValues && generation.barcodeValues.length > 0) {
+      const toRemove = new Set(generation.barcodeValues);
+      data.barcodes = data.barcodes.filter(b => !toRemove.has(b));
+    }
+
+    // Remove the generation entry
+    data.generatedAt.splice(genIndex, 1);
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+
+    res.json({
+      message: 'Generation deleted',
+      removedCount: generation.barcodeValues ? generation.barcodeValues.length : generation.count,
+      totalStored: data.barcodes.length
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete generation' });
   }
 });
 

@@ -10,6 +10,7 @@ const PER_PAGE = COLS * ROWS; // 48 barcodes per A4 page
 
 // ---- State ----
 let lastGeneratedBarcodes = [];
+let pendingDeleteCallback = null;
 
 // ---- Init ----
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,37 +37,44 @@ async function loadStats() {
     document.getElementById('totalStored').textContent = data.barcodes.length.toLocaleString();
     renderHistory(data.generatedAt || []);
   } catch {
+    // If file doesn't exist or API fails, assume 0
     document.getElementById('totalStored').textContent = '0';
+    document.getElementById('historyList').innerHTML = '<p class="empty-state">No barcodes generated yet</p>';
   }
 }
 
 // ---- Generate Barcodes ----
 
 async function generateBarcodes() {
-  const countInput = document.getElementById('barcodeCount');
+  const pageCountInput = document.getElementById('pageCount'); // Changed input ID
   const prefixInput = document.getElementById('barcodePrefix');
   const btn = document.getElementById('generateBtn');
 
-  const count = parseInt(countInput.value, 10);
+  const pageCount = parseInt(pageCountInput.value, 10); // Read pageCount
   const prefix = prefixInput.value.trim() || '200';
 
-  if (!count || count < 1 || count > 10000) {
-    showToast('Please enter a number between 1 and 10,000', 'error');
+  // Updated validation for pageCount
+  if (!pageCount || pageCount < 1 || pageCount > 200) {
+    showToast('Please enter a number of pages between 1 and 200', 'error');
     return;
   }
+
+  const totalBarcodesToGenerate = pageCount * PER_PAGE; // Calculate total barcodes
 
   // Show progress
   btn.classList.add('loading');
   btn.disabled = true;
-  showStatus('Generating…', `Creating ${count.toLocaleString()} unique EAN-13 barcodes`);
+  // Updated status message
+  showStatus('Generating…', `Creating ${totalBarcodesToGenerate.toLocaleString()} barcodes across ${pageCount} page(s)`);
   updateProgress(10);
 
   try {
     updateProgress(30);
 
+    // Changed body to send 'pageCount' instead of 'count'
     const result = await apiFetch('/api/barcodes/generate', {
       method: 'POST',
-      body: JSON.stringify({ count, prefix })
+      body: JSON.stringify({ pageCount, prefix })
     });
 
     updateProgress(60);
@@ -76,18 +84,21 @@ async function generateBarcodes() {
     showPreview(result.barcodes.slice(0, PER_PAGE));
     updateProgress(80);
 
-    // Generate PDF
+    // Generate PDF and auto-download
+    // Updated status message for PDF generation
     updateStatusText('Building PDF…', `Laying out ${result.generated} barcodes in ${Math.ceil(result.generated / PER_PAGE)} page(s)`);
     await generatePDF(result.barcodes);
 
     updateProgress(100);
+    // Updated final status message
     updateStatusText('Complete!', `Generated ${result.generated} barcodes · PDF downloaded`);
 
     // Update stats
     document.getElementById('totalStored').textContent = result.totalStored.toLocaleString();
-    loadStats();
+    loadStats(); // Reload history and stats
 
-    showToast(`✓ ${result.generated} barcodes generated & PDF downloaded`, 'success');
+    // Updated toast message
+    showToast(`✓ ${result.generated} barcodes generated (${result.pageCount} pages) & PDF downloaded`, 'success');
 
   } catch (err) {
     showToast(err.message, 'error');
@@ -100,7 +111,7 @@ async function generateBarcodes() {
 
 // ---- PDF Generation ----
 
-async function generatePDF(barcodes) {
+async function generatePDF(barcodes, filename) {
   const { jsPDF } = window.jspdf;
 
   // A4 dimensions in mm
@@ -178,8 +189,33 @@ async function generatePDF(barcodes) {
   }
 
   // Download the PDF
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  doc.save(`nior-barcodes-${timestamp}.pdf`);
+  const pdfFilename = filename || `nior-barcodes-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.pdf`;
+  doc.save(pdfFilename);
+}
+
+// ---- Re-download PDF for a past generation ----
+
+async function redownloadPDF(generationId) {
+  try {
+    const data = await apiFetch('/api/barcodes');
+    const generation = (data.generatedAt || []).find(g => g.id === generationId);
+
+    if (!generation || !generation.barcodeValues || generation.barcodeValues.length === 0) {
+      showToast('No barcodes found for this generation', 'error');
+      return;
+    }
+
+    showToast('Building PDF…', 'success');
+
+    const dateStr = new Date(generation.timestamp).toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    await generatePDF(generation.barcodeValues, `nior-barcodes-${dateStr}.pdf`);
+
+    // Updated toast message
+    const numPages = Math.ceil(generation.barcodeValues.length / PER_PAGE);
+    showToast(`✓ PDF downloaded (${generation.barcodeValues.length} barcodes, ${numPages} pages)`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // ---- Preview ----
@@ -190,7 +226,9 @@ function showPreview(barcodes) {
   const badge = document.getElementById('previewBadge');
 
   section.style.display = 'block';
-  badge.textContent = `${lastGeneratedBarcodes.length} barcodes · ${Math.ceil(lastGeneratedBarcodes.length / PER_PAGE)} page(s)`;
+  // Updated badge to reflect pages
+  const numPages = Math.ceil(lastGeneratedBarcodes.length / PER_PAGE);
+  badge.textContent = `${lastGeneratedBarcodes.length} barcodes · ${numPages} page(s)`;
 
   grid.innerHTML = '';
 
@@ -256,8 +294,8 @@ function renderHistory(entries) {
     return;
   }
 
-  // Show most recent first, limit to 20
-  const recent = entries.slice(-20).reverse();
+  // Show most recent first, limit to 50
+  const recent = entries.slice(-50).reverse();
 
   list.innerHTML = recent.map(entry => {
     const date = new Date(entry.timestamp);
@@ -266,34 +304,210 @@ function renderHistory(entries) {
       hour: '2-digit', minute: '2-digit'
     });
 
+    const hasBarcodesData = entry.barcodeValues && entry.barcodeValues.length > 0;
+    const downloadBtnHtml = hasBarcodesData
+      ? `<button class="history-action-btn download-btn" onclick="redownloadPDF('${entry.id}')" title="Download PDF">
+           <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"/></svg>
+         </button>`
+      : '';
+
+    const deleteBtnHtml = entry.id
+      ? `<button class="history-action-btn delete-btn" onclick="confirmDeleteGeneration('${entry.id}', ${entry.count})" title="Delete this batch">
+           <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+         </button>`
+      : '';
+
+    // Updated to display page count from entry if available, otherwise calculate
+    const pages = entry.pageCount || Math.ceil(entry.count / PER_PAGE);
+    const pageText = pages === 1 ? 'page' : 'pages';
+
     return `
-      <div class="history-item">
+      <div class="history-item" id="gen-${entry.id || ''}">
         <div class="history-item-info">
-          <span class="history-item-count">${entry.count} barcode${entry.count !== 1 ? 's' : ''}</span>
+          <span class="history-item-count">${entry.count} barcode${entry.count !== 1 ? 's' : ''} (${pages} ${pageText})</span>
           <span class="history-item-date">${formatted}</span>
         </div>
-        <span class="history-item-prefix">Prefix: ${entry.prefix}</span>
+        <div class="history-item-actions">
+          <span class="history-item-prefix">Prefix: ${entry.prefix}</span>
+          ${downloadBtnHtml}
+          <button class="history-action-btn view-btn" onclick="viewGeneration('${entry.id}')" title="View barcodes">
+             <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM4 10a6 6 0 0112 0 6 6 0 01-12 0z" clip-rule="evenodd"/></svg>
+          </button>
+          ${deleteBtnHtml}
+        </div>
       </div>
     `;
   }).join('');
 }
 
-// ---- Clear All ----
+// ---- Delete Generation ----
 
-async function clearAllBarcodes() {
-  if (!confirm('This will delete all stored barcode history. Are you sure?')) return;
+function confirmDeleteGeneration(id, count) {
+  const modal = document.getElementById('confirmModal');
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  const title = document.getElementById('modalTitle');
+  const message = document.getElementById('modalMessage');
 
+  title.textContent = 'Delete Generation?';
+  message.textContent = `This will permanently remove ${count} barcode${count !== 1 ? 's' : ''} from this batch. This action cannot be undone.`;
+
+  modal.classList.add('active');
+
+  // Set up confirm handler
+  pendingDeleteCallback = () => deleteGeneration(id);
+  confirmBtn.onclick = () => {
+    closeModal();
+    if (pendingDeleteCallback) pendingDeleteCallback();
+    pendingDeleteCallback = null;
+  };
+}
+
+async function deleteGeneration(id) {
   try {
-    await apiFetch('/api/barcodes', { method: 'DELETE' });
-    document.getElementById('totalStored').textContent = '0';
-    document.getElementById('previewSection').style.display = 'none';
-    hideStatus();
+    // Add exit animation to the item
+    const el = document.getElementById(`gen-${id}`);
+    if (el) {
+      el.classList.add('removing');
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    const result = await apiFetch(`/api/barcodes/generation/${id}`, { method: 'DELETE' });
+
+    document.getElementById('totalStored').textContent = result.totalStored.toLocaleString();
     loadStats();
-    showToast('All barcode history cleared', 'success');
+    showToast(`✓ Deleted ${result.removedCount} barcodes`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+    loadStats(); // Refresh to fix UI
+  }
+}
+
+// ---- View Generation ----
+
+async function viewGeneration(generationId) {
+  try {
+    const data = await apiFetch('/api/barcodes');
+    const generation = (data.generatedAt || []).find(g => g.id === generationId);
+
+    if (!generation || !generation.barcodeValues || generation.barcodeValues.length === 0) {
+      showToast('No barcodes found for this generation', 'error');
+      return;
+    }
+
+    const modal = document.getElementById('viewModal');
+    const modalTitle = document.getElementById('viewModalTitle');
+    const modalBarcodesContainer = document.getElementById('viewModalBarcodes');
+
+    modalTitle.textContent = `Viewing Barcodes (${generation.count} total)`;
+    modalBarcodesContainer.innerHTML = ''; // Clear previous content
+
+    const barcodeListHtml = generation.barcodeValues.map(code => {
+      const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      // JsBarcode will be used to render SVG in the DOM.
+      // We'll need to append this SVG to the modal container.
+      // For simplicity, we can generate the SVG elements directly here if possible,
+      // or dynamically render them after the modal is visible.
+      // For now, let's assume we'll render them in the DOM and then use JsBarcode.
+
+      return `<div class="view-barcode-item">
+                <svg id="barcode-${code}"></svg>
+                <p>${code}</p>
+              </div>`;
+    }).join('');
+
+    modalBarcodesContainer.innerHTML = barcodeListHtml;
+
+    // Now render the barcodes using JsBarcode
+    generation.barcodeValues.forEach(code => {
+      JsBarcode(`#barcode-${code}`, code, {
+        format: 'EAN13',
+        width: 1.5,
+        height: 40,
+        displayValue: true,
+        fontSize: 12,
+        font: 'monospace',
+        textMargin: 2,
+        margin: 3,
+        lineColor: '#1a1a2e',
+        background: '#ffffff'
+      });
+    });
+
+    modal.style.display = 'flex'; // Show the modal
+
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
+
+function closeViewModal() {
+  document.getElementById('viewModal').style.display = 'none';
+  // Clear content to avoid lingering data
+  document.getElementById('viewModalBarcodes').innerHTML = '';
+}
+
+// Close modal on overlay click
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'viewModal') closeViewModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('viewModal').style.display === 'flex') {
+    closeViewModal();
+  }
+});
+
+
+// ---- Clear All ----
+
+async function clearAllBarcodes() {
+  const modal = document.getElementById('confirmModal');
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  const title = document.getElementById('modalTitle');
+  const message = document.getElementById('modalMessage');
+
+  title.textContent = 'Clear All Barcodes?';
+  message.textContent = 'This will permanently delete all stored barcodes and generation history. This action cannot be undone.';
+
+  modal.classList.add('active');
+
+  pendingDeleteCallback = async () => {
+    try {
+      await apiFetch('/api/barcodes', { method: 'DELETE' });
+      document.getElementById('totalStored').textContent = '0';
+      document.getElementById('previewSection').style.display = 'none';
+      hideStatus();
+      loadStats();
+      showToast('All barcode history cleared', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  confirmBtn.onclick = () => {
+    closeModal();
+    if (pendingDeleteCallback) pendingDeleteCallback();
+    pendingDeleteCallback = null;
+  };
+}
+
+// ---- Modal ----
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('active');
+  pendingDeleteCallback = null;
+}
+
+// Close modal on overlay click
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'confirmModal') closeModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
 
 // ---- Toast ----
 

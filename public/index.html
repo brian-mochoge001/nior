@@ -57,10 +57,10 @@
 
         <div class="form-grid">
           <div class="form-group">
-            <label for="barcodeCount">Number of Barcodes</label>
+            <label for="pageCount">Number of PDF Pages</label>
             <div class="input-wrapper">
-              <input type="number" id="barcodeCount" min="1" max="10000" value="48" placeholder="e.g. 48">
-              <span class="input-hint">Max 10,000 per batch</span>
+              <input type="number" id="pageCount" min="1" max="200" value="1" placeholder="e.g. 1">
+              <span class="input-hint">Max 200 pages (48 barcodes/page)</span>
             </div>
           </div>
 
@@ -78,13 +78,13 @@
             <svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
               <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
             </svg>
-            Generate & Download PDF
+            Generate &amp; Download PDF
           </button>
           <button class="btn btn-ghost" id="clearBtn" onclick="clearAllBarcodes()">
             <svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
               <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
             </svg>
-            Clear History
+            Clear All
           </button>
         </div>
       </section>
@@ -119,12 +119,49 @@
       <section class="history-card glass-card" id="historyCard">
         <div class="card-header">
           <h2>Generation History</h2>
+          <p class="history-subtitle">Download PDFs or delete past batches</p>
         </div>
         <div class="history-list" id="historyList">
           <p class="empty-state">No barcodes generated yet</p>
         </div>
       </section>
     </main>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="confirmModal">
+      <div class="modal-card glass-card">
+        <div class="modal-icon danger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+        </div>
+        <h3 class="modal-title" id="modalTitle">Delete Generation?</h3>
+        <p class="modal-message" id="modalMessage">This will permanently remove these barcodes. This action cannot be undone.</p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="modalCancelBtn" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-danger" id="modalConfirmBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Barcodes Modal -->
+    <div class="modal-overlay" id="viewModal" style="display:none;">
+      <div class="modal-card glass-card">
+        <div class="modal-header">
+          <h3 class="modal-title" id="viewModalTitle">Viewing Barcodes</h3>
+          <button class="modal-close-btn" onclick="closeViewModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="viewModalBarcodes" class="barcode-list-container">
+            <!-- Barcodes will be loaded here -->
+            <p>Loading barcodes...</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="closeViewModal()">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Footer -->
     <footer class="app-footer">
