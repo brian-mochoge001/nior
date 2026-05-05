@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Generate unique EAN-13 barcodes and export them as print-ready A4 PDFs">
+  <title>Nior — EAN Barcode Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- JsBarcode for rendering barcodes -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Ambient background blobs -->
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+    <div class="bg-blob blob-3"></div>
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="6" width="3" height="20" rx="1" fill="currentColor"/>
+            <rect x="7" y="6" width="2" height="20" rx="1" fill="currentColor" opacity="0.7"/>
+            <rect x="11" y="6" width="4" height="20" rx="1" fill="currentColor"/>
+            <rect x="17" y="6" width="2" height="20" rx="1" fill="currentColor" opacity="0.5"/>
+            <rect x="21" y="6" width="3" height="20" rx="1" fill="currentColor" opacity="0.8"/>
+            <rect x="26" y="6" width="4" height="20" rx="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="logo-text">Nior</h1>
+          <p class="logo-subtitle">EAN-13 Barcode Generator</p>
+        </div>
+      </div>
+      <div class="header-stats" id="headerStats">
+        <div class="stat-chip">
+          <span class="stat-label">Total Stored</span>
+          <span class="stat-value" id="totalStored">—</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Generator Card -->
+      <section class="generator-card glass-card">
+        <div class="card-header">
+          <h2>Generate Barcodes</h2>
+          <p>Create unique EAN-13 compliant barcodes, exported as print-ready A4 PDFs</p>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="barcodeCount">Number of Barcodes</label>
+            <div class="input-wrapper">
+              <input type="number" id="barcodeCount" min="1" max="10000" value="48" placeholder="e.g. 48">
+              <span class="input-hint">Max 10,000 per batch</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="barcodePrefix">EAN Prefix</label>
+            <div class="input-wrapper">
+              <input type="text" id="barcodePrefix" maxlength="3" value="200" placeholder="e.g. 200">
+              <span class="input-hint">200–299 for internal use</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="generateBtn" onclick="generateBarcodes()">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
+              <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+            </svg>
+            Generate & Download PDF
+          </button>
+          <button class="btn btn-ghost" id="clearBtn" onclick="clearAllBarcodes()">
+            <svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon">
+              <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            Clear History
+          </button>
+        </div>
+      </section>
+
+      <!-- Progress / Status -->
+      <section class="status-card glass-card" id="statusCard" style="display:none;">
+        <div class="status-content">
+          <div class="progress-ring" id="progressRing">
+            <svg viewBox="0 0 60 60">
+              <circle class="progress-bg" cx="30" cy="30" r="26"/>
+              <circle class="progress-fill" cx="30" cy="30" r="26" id="progressCircle"/>
+            </svg>
+            <span class="progress-text" id="progressText">0%</span>
+          </div>
+          <div class="status-info">
+            <h3 id="statusTitle">Generating…</h3>
+            <p id="statusMessage">Creating unique EAN-13 barcodes</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Preview Section -->
+      <section class="preview-section" id="previewSection" style="display:none;">
+        <div class="preview-header">
+          <h2>Preview</h2>
+          <span class="badge" id="previewBadge">0 barcodes</span>
+        </div>
+        <div class="preview-grid" id="previewGrid"></div>
+      </section>
+
+      <!-- History Section -->
+      <section class="history-card glass-card" id="historyCard">
+        <div class="card-header">
+          <h2>Generation History</h2>
+        </div>
+        <div class="history-list" id="historyList">
+          <p class="empty-state">No barcodes generated yet</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2026 Nior · EAN-13 Barcode Generator</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
