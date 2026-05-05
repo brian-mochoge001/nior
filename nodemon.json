@@ -1,0 +1,6 @@
+{
+  "watch": ["server.js"],
+  "ignore": ["node_modules", "data", "public"],
+  "ext": "js,json",
+  "delay": "500"
+}

@@ -1,11 +1,14 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const morgan = require('morgan');
 const fs = require('fs');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0'; // Required for Render
+const IS_PROD = process.env.NODE_ENV === 'production';
 const DATA_FILE = path.join(__dirname, 'data', 'barcodes.json');
 
 // Ensure data directory exists
@@ -20,9 +23,17 @@ if (!fs.existsSync(DATA_FILE)) {
 }
 
 app.use(cors());
-app.use(morgan('dev'));
+app.use(compression()); // Gzip responses for faster load times on Render
+app.use(morgan(IS_PROD ? 'combined' : 'dev'));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: IS_PROD ? '1d' : 0 // Cache static assets in production
+}));
+
+// Health check endpoint for Render
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
 
 // GET all stored barcodes
 app.get('/api/barcodes', (req, res) => {
@@ -166,6 +177,12 @@ function calculateEAN13CheckDigit(digits12) {
   return remainder === 0 ? '0' : (10 - remainder).toString();
 }
 
-app.listen(PORT, () => {
-  console.log(`🔷 Nior Barcode Generator running at http://localhost:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`🔷 Nior Barcode Generator running at http://${HOST}:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => process.exit(0));
 });
