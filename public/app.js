@@ -137,6 +137,23 @@ async function generatePDF(barcodes, filename) {
     const startIdx = page * PER_PAGE;
     const pageBarcodes = barcodes.slice(startIdx, startIdx + PER_PAGE);
 
+    // ---- Draw cutting grid lines ----
+    doc.setDrawColor(180, 180, 180); // Light grey for cut guides
+    doc.setLineWidth(0.3);
+
+    // Vertical lines
+    for (let c = 0; c <= COLS; c++) {
+      const lx = marginX + c * cellWidth;
+      doc.line(lx, marginY, lx, marginY + ROWS * cellHeight);
+    }
+
+    // Horizontal lines
+    for (let r = 0; r <= ROWS; r++) {
+      const ly = marginY + r * cellHeight;
+      doc.line(marginX, ly, marginX + COLS * cellWidth, ly);
+    }
+
+    // ---- Render barcodes inside the grid ----
     for (let i = 0; i < pageBarcodes.length; i++) {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
