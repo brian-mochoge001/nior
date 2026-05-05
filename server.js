@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0'; // Required for Render
 const IS_PROD = process.env.NODE_ENV === 'production';
 const DATA_FILE = path.join(__dirname, 'data', 'barcodes.json');
+const DEFAULT_DATA = { barcodes: [], generatedAt: [] };
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, 'data');
@@ -17,9 +18,28 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// Ensure barcodes.json exists
+/**
+ * Safely read and parse the barcodes JSON file.
+ * Returns a valid default if the file is missing, empty, or corrupt.
+ */
+function readData() {
+  try {
+    const raw = fs.readFileSync(DATA_FILE, 'utf-8').trim();
+    if (!raw) return { ...DEFAULT_DATA };
+    const parsed = JSON.parse(raw);
+    // Ensure the shape is correct
+    return {
+      barcodes: Array.isArray(parsed.barcodes) ? parsed.barcodes : [],
+      generatedAt: Array.isArray(parsed.generatedAt) ? parsed.generatedAt : []
+    };
+  } catch {
+    return { ...DEFAULT_DATA };
+  }
+}
+
+// Initialize data file if missing
 if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify({ barcodes: [], generatedAt: [] }, null, 2));
+  fs.writeFileSync(DATA_FILE, JSON.stringify(DEFAULT_DATA, null, 2));
 }
 
 app.use(cors());
@@ -37,12 +57,8 @@ app.get('/api/health', (req, res) => {
 
 // GET all stored barcodes
 app.get('/api/barcodes', (req, res) => {
-  try {
-    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to read barcodes file' });
-  }
+  const data = readData();
+  res.json(data);
 });
 
 // POST generate new barcodes (modified for pageCount)
@@ -58,7 +74,7 @@ app.post('/api/barcodes/generate', (req, res) => {
     const count = pageCount * PER_PAGE; // Calculate total barcodes needed
 
     // Read existing barcodes
-    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    const data = readData();
     const existingSet = new Set(data.barcodes);
 
     const eanPrefix = prefix || '200'; // Use 200-299 range (internal use / in-store)
@@ -119,7 +135,7 @@ app.post('/api/barcodes/generate', (req, res) => {
 app.delete('/api/barcodes/generation/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    const data = readData();
 
     // Find the generation entry
     const genIndex = data.generatedAt.findIndex(g => g.id === id);
