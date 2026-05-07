@@ -5,21 +5,21 @@
 
 :root {
   /* Color Palette */
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
+  --bg-primary: #06050e;
+  --bg-secondary: #090814;
   --bg-card: rgba(255, 255, 255, 0.03);
   --bg-card-hover: rgba(255, 255, 255, 0.06);
   --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-active: rgba(99, 102, 241, 0.4);
+  --border-active: rgba(241, 217, 99, 0.4);
 
   --text-primary: #f0f0f5;
-  --text-secondary: #8b8b9e;
-  --text-muted: #55556a;
+  --text-secondary: #9e9a8b;
+  --text-muted: #6a6955;
 
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.25);
-  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+  --accent: #f1e863;
+  --accent-light: #f8de81;
+  --accent-glow: rgba(241, 232, 99, 0.25);
+  --accent-gradient: linear-gradient(135deg, #f1dc63, #f6d75c, #dfa800);
 
   --success: #22c55e;
   --danger: #ef4444;
@@ -31,7 +31,7 @@
   --radius-lg: 16px;
   --radius-xl: 24px;
 
-  --shadow-glow: 0 0 60px rgba(99, 102, 241, 0.08);
+  --shadow-glow: 0 0 60px rgba(241, 215, 99, 0.08);
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3), 0 1px 4px rgba(0, 0, 0, 0.2);
 
   --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -79,7 +79,7 @@ body {
 .blob-1 {
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.15), transparent);
+  background: radial-gradient(circle, rgba(241, 222, 99, 0.15), transparent);
   top: -100px;
   right: -150px;
   animation: blobFloat 20s ease-in-out infinite;
@@ -88,7 +88,7 @@ body {
 .blob-2 {
   width: 400px;
   height: 400px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.12), transparent);
+  background: radial-gradient(circle, rgba(246, 215, 92, 0.12), transparent);
   bottom: 20%;
   left: -100px;
   animation: blobFloat 25s ease-in-out infinite reverse;
@@ -97,7 +97,7 @@ body {
 .blob-3 {
   width: 350px;
   height: 350px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.1), transparent);
+  background: radial-gradient(circle, rgba(247, 223, 85, 0.1), transparent);
   top: 50%;
   right: 20%;
   animation: blobFloat 18s ease-in-out infinite 5s;
@@ -120,7 +120,7 @@ body {
   padding: 24px 40px;
   border-bottom: 1px solid var(--border-subtle);
   backdrop-filter: blur(20px);
-  background: rgba(10, 10, 15, 0.6);
+  background: rgba(15, 14, 10, 0.6);
 }
 
 .logo-group {
@@ -305,9 +305,6 @@ body {
   align-items: center;
   gap: 8px;
   padding: 14px 28px;
-  font-size: 0.9rem;
-  font-family: var(--font);
-  font-weight: 600;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -319,17 +316,25 @@ body {
 .btn-icon {
   width: 18px;
   height: 18px;
+  color: #444444;
+}
+
+.btn-text {
+  color: #444444;
+  font-size: 0.9rem;
+  font-family: var(--font);
+  font-weight: 600;
 }
 
 .btn-primary {
   background: var(--accent-gradient);
   color: white;
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 16px rgba(136, 136, 136, 0.3);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.45);
+  box-shadow: 0 6px 24px rgba(255, 247, 141, 0.45);
 }
 
 .btn-primary:active {
@@ -690,12 +695,19 @@ body {
 
 .app-footer {
   position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
   z-index: 5;
   text-align: center;
   padding: 24px;
   color: var(--text-muted);
   font-size: 0.75rem;
   border-top: 1px solid var(--border-subtle);
+}
+.infinity {
+  color: var(--text-muted);
 }
 
 /* ---- Responsive ---- */
